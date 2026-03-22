@@ -8,7 +8,7 @@
 const COOKIE_NAME = 'oye_sess';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
 const ADMIN_EMAIL = 'hmnshu26@gmail.com';
-const OTP_EXPIRY = 5 * 60; // 5 minutes
+const OTP_EXPIRY = 5 * 60;
 
 // ===================================================================
 // D1 OPERATIONS
@@ -37,7 +37,7 @@ async function insertSubmission(db, data, meta) {
 }
 
 // ===================================================================
-// SESSION AUTH — HMAC-signed HttpOnly cookie
+// SESSION AUTH
 // ===================================================================
 
 async function signSession(payload, secret) {
@@ -92,28 +92,31 @@ function generateOTP() {
 }
 
 async function sendOTPEmail(env, otp) {
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${env.RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: env.EMAIL_FROM || 'onboarding@resend.dev',
-      to: ADMIN_EMAIL,
-      subject: '🔐 Oye Nino Admin — Login OTP',
-      text: `Your OTP is: ${otp}\n\nValid for 5 minutes. If you didn't request this, ignore it.`,
-    }),
-  });
-  return res.ok;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: env.EMAIL_FROM || 'onboarding@resend.dev',
+        to: ADMIN_EMAIL,
+        subject: '\uD83D\uDD10 Oye Nino Admin \u2014 Login OTP',
+        text: `Your OTP is: ${otp}\n\nValid for 5 minutes. If you didn't request this, ignore it.`,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 // ===================================================================
 // HTML PAGES
 // ===================================================================
 
-const PAGE_STYLE = `
-*{margin:0;padding:0;box-sizing:border-box}
+const PAGE_STYLE = `*{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{background:#111;border:1px solid #222;border-radius:16px;padding:48px;max-width:400px;width:90%}
 h1{font-size:24px;margin-bottom:6px;text-align:center} h1 span{color:#f97316}
@@ -125,35 +128,34 @@ button{width:100%;margin-top:4px;padding:14px;background:#f97316;color:#000;bord
 button:hover{background:#fb923c;transform:translateY(-1px)}
 .error{background:#2a1010;border:1px solid #5a2020;color:#f87171;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px;text-align:center}
 .success{background:#0a2a1a;border:1px solid #1a5a2a;color:#4ade80;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px;text-align:center}
-.note{text-align:center;margin-top:20px;font-size:11px;color:#333}
-`;
+.note{text-align:center;margin-top:20px;font-size:11px;color:#333}`;
 
 function emailPageHTML(error) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Oye Nino — Admin</title><style>${PAGE_STYLE}</style></head>
+<title>Oye Nino \u2014 Admin</title><style>${PAGE_STYLE}</style></head>
 <body><div class="card">
   <h1><span>oye</span>nino</h1>
   <p class="sub">admin access</p>
-  ${error ? `<div class="error">${error}</div>` : ''}
+  ${error ? '<div class="error">' + error + '</div>' : ''}
   <form method="POST" action="/admin/send-otp">
     <label>Email</label>
     <input type="email" name="email" placeholder="Enter your email" autofocus required>
     <button type="submit">Send OTP</button>
   </form>
-  <p class="note">Restricted access — unauthorized attempts are logged</p>
+  <p class="note">Restricted access \u2014 unauthorized attempts are logged</p>
 </div></body></html>`;
 }
 
 function otpPageHTML(error, success) {
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Oye Nino — Verify</title><style>${PAGE_STYLE}</style></head>
+<title>Oye Nino \u2014 Verify</title><style>${PAGE_STYLE}</style></head>
 <body><div class="card">
   <h1><span>oye</span>nino</h1>
   <p class="sub">verify your identity</p>
-  ${error ? `<div class="error">${error}</div>` : ''}
-  ${success ? `<div class="success">${success}</div>` : ''}
+  ${error ? '<div class="error">' + error + '</div>' : ''}
+  ${success ? '<div class="success">' + success + '</div>' : ''}
   <form method="POST" action="/admin/login">
     <label>OTP (check your email)</label>
     <input type="text" name="otp" placeholder="6-digit code" inputmode="numeric" maxlength="6" autofocus required>
@@ -171,7 +173,7 @@ function dashboardHTML() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oye Nino — Leads</title>
+<title>Oye Nino \u2014 Leads</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e0e0e0;min-height:100vh}
@@ -222,7 +224,7 @@ tr:hover td{background:#151515}
 </head>
 <body>
 <div class="topbar">
-  <h1><span>oye</span>nino — leads</h1>
+  <h1><span>oye</span>nino \u2014 leads</h1>
   <div class="right">
     <span class="meta" id="meta"></span>
     <a href="/admin/logout">Logout</a>
@@ -231,10 +233,10 @@ tr:hover td{background:#151515}
 <div class="stats" id="stats"></div>
 <div class="filters" id="filters">
   <button class="active" data-form="">All</button>
-  <button data-form="contact">💼 Consulting</button>
-  <button data-form="prompts_gate">🔓 Prompts</button>
-  <button data-form="shopping_prompt_gate">🛒 Shopping</button>
-  <button data-form="existence_series">🎨 Existence</button>
+  <button data-form="contact">\uD83D\uDCBC Consulting</button>
+  <button data-form="prompts_gate">\uD83D\uDD13 Prompts</button>
+  <button data-form="shopping_prompt_gate">\uD83D\uDED2 Shopping</button>
+  <button data-form="existence_series">\uD83C\uDFA8 Existence</button>
 </div>
 <div class="table-wrap">
   <table>
@@ -249,112 +251,145 @@ tr:hover td{background:#151515}
   <div class="modal" id="modal-content"></div>
 </div>
 <script>
-var currentForm = '';
+var currentForm = "";
+
 function api(path, opts) {
   return fetch(path, opts).then(function(r) {
-    if (r.status === 401) { location.href = '/admin'; return null; }
+    if (r.status === 401) { location.href = "/admin"; return null; }
     return r.json();
   }).catch(function() { return null; });
 }
+
 function loadStats() {
-  api('/admin/api/stats').then(function(data) {
+  api("/admin/api/stats").then(function(data) {
     if (!data || !Array.isArray(data)) return;
-    var el = document.getElementById('stats');
+    var el = document.getElementById("stats");
     var t = {};
     data.forEach(function(r) { t[r.status] = (t[r.status]||0) + r.count; });
     var total = Object.values(t).reduce(function(a,b){return a+b}, 0);
     var cards = [
-      {num:total,label:'Total'},
-      {num:t.new||0,label:'New'},
-      {num:t.contacted||0,label:'Contacted'},
-      {num:t.archived||0,label:'Archived'}
+      {num:total,label:"Total"},
+      {num:t["new"]||0,label:"New"},
+      {num:t.contacted||0,label:"Contacted"},
+      {num:t.archived||0,label:"Archived"}
     ];
     el.innerHTML = cards.map(function(s) {
-      return '<div class="stat-card"><div class="num">'+s.num+'</div><div class="label">'+s.label+'</div></div>';
-    }).join('');
-    document.getElementById('meta').textContent = total + ' leads';
+      return "<div class=\\"stat-card\\"><div class=\\"num\\">"+s.num+"</div><div class=\\"label\\">"+s.label+"</div></div>";
+    }).join("");
+    document.getElementById("meta").textContent = total + " leads";
   });
 }
+
 function loadRows(form) {
-  var tbody = document.getElementById('tbody');
-  tbody.innerHTML = '<tr><td colspan="10" class="empty">Loading...</td></tr>';
-  var url = '/admin/api/submissions?limit=200';
-  if (form) url += '&form=' + form;
+  var tbody = document.getElementById("tbody");
+  tbody.innerHTML = "<tr><td colspan=\\"10\\" class=\\"empty\\">Loading...</td></tr>";
+  var url = "/admin/api/submissions?limit=200";
+  if (form) url += "&form=" + form;
   api(url).then(function(data) {
     if (!data) return;
     var rows = data.results || [];
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">No submissions yet</td></tr>';
+      tbody.innerHTML = "<tr><td colspan=\\"10\\" class=\\"empty\\">No submissions yet</td></tr>";
       return;
     }
     tbody.innerHTML = rows.map(function(r) {
       var d = r.created_at
-        ? new Date(r.created_at+'Z').toLocaleString('en-IN',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})
-        : '\u2014';
-      var bc = r.status==='new' ? 'badge-new' : r.status==='contacted' ? 'badge-contacted' : 'badge-archived';
-      var msg = r.message ? (r.message.length > 35 ? r.message.slice(0,35)+'\u2026' : r.message) : '\u2014';
-      return '<tr>'+
-        '<td><span class="badge '+bc+'">'+(r.status||'new')+'</span></td>'+
-        '<td><span class="badge badge-form">'+(r.form_name||'\u2014')+'</span></td>'+
-        '<td>'+(r.name||'\u2014')+'</td>'+
-        '<td>'+(r.email||'\u2014')+'</td>'+
-        '<td>'+(r.phone||'\u2014')+'</td>'+
-        '<td>'+(r.service||'\u2014')+'</td>'+
-        '<td class="msg-preview" onclick="showDetail('+r.id+')">'+msg+'</td>'+
-        '<td>'+(r.city||'\u2014')+'</td>'+
-        '<td>'+d+'</td>'+
-        '<td class="actions">'+
-          (r.status!=='contacted' ? '<button onclick="event.stopPropagation();setStatus('+r.id+',\'contacted\')">\u2713</button>' : '')+
-          (r.status!=='archived' ? '<button onclick="event.stopPropagation();setStatus('+r.id+',\'archived\')">\u2717</button>' : '')+
-        '</td></tr>';
-    }).join('');
+        ? new Date(r.created_at+"Z").toLocaleString("en-IN",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"})
+        : "\u2014";
+      var bc = r.status==="new" ? "badge-new" : r.status==="contacted" ? "badge-contacted" : "badge-archived";
+      var msg = r.message ? (r.message.length > 35 ? r.message.slice(0,35)+"\u2026" : r.message) : "\u2014";
+      var actionBtns = "";
+      if (r.status !== "contacted") {
+        actionBtns += "<button data-id=\\""+r.id+"\\" data-status=\\"contacted\\">\u2713</button>";
+      }
+      if (r.status !== "archived") {
+        actionBtns += "<button data-id=\\""+r.id+"\\" data-status=\\"archived\\">\u2717</button>";
+      }
+      return "<tr>"+
+        "<td><span class=\\"badge "+bc+"\\">"+(r.status||"new")+"</span></td>"+
+        "<td><span class=\\"badge badge-form\\">"+(r.form_name||"\u2014")+"</span></td>"+
+        "<td>"+(r.name||"\u2014")+"</td>"+
+        "<td>"+(r.email||"\u2014")+"</td>"+
+        "<td>"+(r.phone||"\u2014")+"</td>"+
+        "<td>"+(r.service||"\u2014")+"</td>"+
+        "<td class=\\"msg-preview\\" data-detail=\\""+r.id+"\\">"+msg+"</td>"+
+        "<td>"+(r.city||"\u2014")+"</td>"+
+        "<td>"+d+"</td>"+
+        "<td class=\\"actions\\">"+actionBtns+"</td></tr>";
+    }).join("");
   });
 }
+
 function setStatus(id, status) {
-  api('/admin/api/submissions/'+id, {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
+  api("/admin/api/submissions/"+id, {
+    method:"PATCH",
+    headers:{"Content-Type":"application/json"},
     body:JSON.stringify({status:status})
   }).then(function() { loadRows(currentForm); loadStats(); });
 }
+
 function showDetail(id) {
-  api('/admin/api/submissions/'+id).then(function(d) {
+  api("/admin/api/submissions/"+id).then(function(d) {
     if (!d) return;
-    var mc = document.getElementById('modal-content');
-    var h = '<h3>'+(d.name||'Unknown')+' \u2014 '+(d.form_name||'')+'</h3>';
+    var mc = document.getElementById("modal-content");
+    var h = "<h3>"+(d.name||"Unknown")+" \u2014 "+(d.form_name||"")+"</h3>";
     var fields = [
-      ['Name', d.name], ['Email', d.email], ['Phone', d.phone],
-      ['City', d.city], ['Service', d.service], ['Source', d.source],
-      ['Status', d.status || 'new'], ['Date', d.created_at]
+      ["Name", d.name], ["Email", d.email], ["Phone", d.phone],
+      ["City", d.city], ["Service", d.service], ["Source", d.source],
+      ["Status", d.status || "new"], ["Date", d.created_at]
     ];
     fields.forEach(function(f) {
-      if (f[1]) h += '<div class="field"><span class="k">'+f[0]+'</span> <span class="v">'+f[1]+'</span></div>';
+      if (f[1]) h += "<div class=\\"field\\"><span class=\\"k\\">"+f[0]+"</span> <span class=\\"v\\">"+f[1]+"</span></div>";
     });
-    if (d.message) h += '<div class="msg-box">'+d.message.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+    if (d.message) {
+      var safeMsg = d.message.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      h += "<div class=\\"msg-box\\">"+safeMsg+"</div>";
+    }
     if (d.device) {
-      h += '<div class="section">Device</div>';
-      try { h += '<pre>'+JSON.stringify(JSON.parse(d.device),null,2)+'</pre>'; } catch(e) { h += '<pre>'+d.device+'</pre>'; }
+      h += "<div class=\\"section\\">Device</div>";
+      try { h += "<pre>"+JSON.stringify(JSON.parse(d.device),null,2)+"</pre>"; }
+      catch(e) { h += "<pre>"+d.device+"</pre>"; }
     }
     if (d.location) {
-      h += '<div class="section">Location</div>';
-      try { h += '<pre>'+JSON.stringify(JSON.parse(d.location),null,2)+'</pre>'; } catch(e) { h += '<pre>'+d.location+'</pre>'; }
+      h += "<div class=\\"section\\">Location</div>";
+      try { h += "<pre>"+JSON.stringify(JSON.parse(d.location),null,2)+"</pre>"; }
+      catch(e) { h += "<pre>"+d.location+"</pre>"; }
     }
-    h += '<div class="section">Meta</div>';
-    h += '<pre>IP: '+(d.ip||'\u2014')+'\nReferer: '+(d.referer||'\u2014')+'</pre>';
-    h += '<button class="close-btn" onclick="document.getElementById(\'modal\').classList.remove(\'open\')">Close</button>';
+    h += "<div class=\\"section\\">Meta</div>";
+    h += "<pre>IP: "+(d.ip||"\u2014")+"\\nReferer: "+(d.referer||"\u2014")+"</pre>";
+    h += "<button class=\\"close-btn\\" id=\\"modal-close\\">Close</button>";
     mc.innerHTML = h;
-    document.getElementById('modal').classList.add('open');
+    document.getElementById("modal-close").addEventListener("click", function() {
+      document.getElementById("modal").classList.remove("open");
+    });
+    document.getElementById("modal").classList.add("open");
   });
 }
-document.getElementById('filters').addEventListener('click', function(e) {
-  if (e.target.tagName!=='BUTTON') return;
-  document.querySelectorAll('.filters button').forEach(function(b){b.classList.remove('active')});
-  e.target.classList.add('active');
+
+// Event delegation — no inline onclick handlers
+document.querySelector(".table-wrap").addEventListener("click", function(e) {
+  var btn = e.target.closest("button[data-id][data-status]");
+  if (btn) {
+    e.stopPropagation();
+    setStatus(btn.dataset.id, btn.dataset.status);
+    return;
+  }
+  var detail = e.target.closest("[data-detail]");
+  if (detail) {
+    showDetail(detail.dataset.detail);
+  }
+});
+
+document.getElementById("filters").addEventListener("click", function(e) {
+  if (e.target.tagName !== "BUTTON") return;
+  document.querySelectorAll(".filters button").forEach(function(b){b.classList.remove("active")});
+  e.target.classList.add("active");
   currentForm = e.target.dataset.form;
   loadRows(currentForm);
 });
+
 loadStats();
-loadRows('');
+loadRows("");
 </script>
 </body>
 </html>`;
@@ -389,9 +424,8 @@ export default {
 
     if (url.pathname.startsWith('/admin')) {
 
-      // ── Step 1: Email page (GET /admin) ──
+      // ── Step 1: Email page ──
       if ((url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname === '/admin/login') && request.method === 'GET') {
-        // Already logged in?
         const cookie = getCookie(request, COOKIE_NAME);
         if (cookie) {
           const session = await verifySession(cookie, env.ADMIN_KEY);
@@ -402,7 +436,7 @@ export default {
         });
       }
 
-      // ── Step 2: Send OTP (POST /admin/send-otp) ──
+      // ── Step 2: Send OTP ──
       if (url.pathname === '/admin/send-otp' && request.method === 'POST') {
         const fd = await request.formData();
         const email = (fd.get('email') || '').trim().toLowerCase();
@@ -415,11 +449,9 @@ export default {
           });
         }
 
-        // Generate OTP & store in KV (expires in 5 min)
         const otp = generateOTP();
-        await env.OTP_STORE.put(`otp:${ADMIN_EMAIL}`, otp, { expirationTtl: OTP_EXPIRY });
+        await env.OTP_STORE.put('otp:' + ADMIN_EMAIL, otp, { expirationTtl: OTP_EXPIRY });
 
-        // Send OTP via Resend
         const sent = await sendOTPEmail(env, otp);
         if (!sent) {
           return new Response(otpPageHTML('Failed to send OTP. Check Resend config.', null), {
@@ -432,14 +464,13 @@ export default {
         });
       }
 
-      // ── Step 3: Verify OTP + Admin Key (POST /admin/login) ──
+      // ── Step 3: Verify OTP + Admin Key ──
       if (url.pathname === '/admin/login' && request.method === 'POST') {
         const fd = await request.formData();
         const submittedOTP = (fd.get('otp') || '').trim();
         const submittedKey = fd.get('admin_key') || '';
 
-        // Verify OTP from KV
-        const storedOTP = await env.OTP_STORE.get(`otp:${ADMIN_EMAIL}`);
+        const storedOTP = await env.OTP_STORE.get('otp:' + ADMIN_EMAIL);
         if (!storedOTP || storedOTP !== submittedOTP) {
           const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
           console.log(`[AUTH FAIL] Bad OTP, IP: ${ip}`);
@@ -448,7 +479,6 @@ export default {
           });
         }
 
-        // Verify Admin Key (constant-time)
         const a = new TextEncoder().encode(submittedKey);
         const b = new TextEncoder().encode(env.ADMIN_KEY);
         let match = a.length === b.length;
@@ -465,10 +495,8 @@ export default {
           });
         }
 
-        // Delete used OTP
-        await env.OTP_STORE.delete(`otp:${ADMIN_EMAIL}`);
+        await env.OTP_STORE.delete('otp:' + ADMIN_EMAIL);
 
-        // Create session
         const token = await signSession(
           { role: 'admin', email: ADMIN_EMAIL, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE },
           env.ADMIN_KEY
@@ -494,7 +522,7 @@ export default {
         });
       }
 
-      // ── Session check for all other admin routes ──
+      // ── Session check ──
       const cookie = getCookie(request, COOKIE_NAME);
       const session = cookie ? await verifySession(cookie, env.ADMIN_KEY) : null;
 
@@ -512,7 +540,7 @@ export default {
         });
       }
 
-      // ── API: List submissions ──
+      // ── API: List ──
       if (url.pathname === '/admin/api/submissions' && request.method === 'GET') {
         const form = url.searchParams.get('form');
         const status = url.searchParams.get('status');
@@ -527,7 +555,7 @@ export default {
         return Response.json({ results: results.results });
       }
 
-      // ── API: Single submission ──
+      // ── API: Single ──
       if (url.pathname.match(/^\/admin\/api\/submissions\/\d+$/) && request.method === 'GET') {
         const id = url.pathname.split('/').pop();
         const row = await env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first();
@@ -535,7 +563,7 @@ export default {
         return Response.json(row);
       }
 
-      // ── API: Update status/notes ──
+      // ── API: Update ──
       if (url.pathname.match(/^\/admin\/api\/submissions\/\d+$/) && request.method === 'PATCH') {
         const id = url.pathname.split('/').pop();
         const body = await request.json();
