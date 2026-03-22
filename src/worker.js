@@ -1,16 +1,14 @@
 // ===================================================================
 // oyenino-admin — Data owner + Admin dashboard
-// 
-// Two jobs:
-// 1. Internal API (/api/ingest) — called by oyenino-forms via service binding
-// 2. Admin dashboard (/admin/*) — login form + cookie session + D1 reads
 //
-// Auth: ADMIN_KEY entered in login form → HMAC-signed HttpOnly cookie
-// Key NEVER appears in URL, logs, or browser history
+// Login flow: Email → OTP (via Resend) → Admin Key → Session cookie
+// Only hmnshu26@gmail.com can login
 // ===================================================================
 
 const COOKIE_NAME = 'oye_sess';
-const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 days
+const SESSION_MAX_AGE = 7 * 24 * 60 * 60;
+const ADMIN_EMAIL = 'hmnshu26@gmail.com';
+const OTP_EXPIRY = 5 * 60; // 5 minutes
 
 // ===================================================================
 // D1 OPERATIONS
@@ -84,45 +82,87 @@ function getCookie(request, name) {
 }
 
 // ===================================================================
+// OTP HELPERS
+// ===================================================================
+
+function generateOTP() {
+  const arr = new Uint32Array(1);
+  crypto.getRandomValues(arr);
+  return String(100000 + (arr[0] % 900000));
+}
+
+async function sendOTPEmail(env, otp) {
+  const res = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: env.EMAIL_FROM || 'onboarding@resend.dev',
+      to: ADMIN_EMAIL,
+      subject: '🔐 Oye Nino Admin — Login OTP',
+      text: `Your OTP is: ${otp}\n\nValid for 5 minutes. If you didn't request this, ignore it.`,
+    }),
+  });
+  return res.ok;
+}
+
+// ===================================================================
 // HTML PAGES
 // ===================================================================
 
-function loginPageHTML(error) {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Oye Nino — Admin</title>
-<style>
+const PAGE_STYLE = `
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.card{background:#111;border:1px solid #222;border-radius:16px;padding:48px;max-width:380px;width:90%}
+.card{background:#111;border:1px solid #222;border-radius:16px;padding:48px;max-width:400px;width:90%}
 h1{font-size:24px;margin-bottom:6px;text-align:center} h1 span{color:#f97316}
 .sub{text-align:center;color:#555;font-size:13px;margin-bottom:32px}
 label{display:block;font-size:12px;color:#666;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
-input[type=password]{width:100%;padding:14px 16px;background:#0a0a0a;border:1px solid #333;border-radius:10px;color:#fff;font-size:15px;outline:none;transition:border .2s}
-input[type=password]:focus{border-color:#f97316}
-button{width:100%;margin-top:20px;padding:14px;background:#f97316;color:#000;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
+input{width:100%;padding:14px 16px;background:#0a0a0a;border:1px solid #333;border-radius:10px;color:#fff;font-size:15px;outline:none;transition:border .2s;margin-bottom:16px}
+input:focus{border-color:#f97316}
+button{width:100%;margin-top:4px;padding:14px;background:#f97316;color:#000;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s}
 button:hover{background:#fb923c;transform:translateY(-1px)}
 .error{background:#2a1010;border:1px solid #5a2020;color:#f87171;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px;text-align:center}
+.success{background:#0a2a1a;border:1px solid #1a5a2a;color:#4ade80;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:20px;text-align:center}
 .note{text-align:center;margin-top:20px;font-size:11px;color:#333}
-</style>
-</head>
-<body>
-<div class="card">
+`;
+
+function emailPageHTML(error) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Oye Nino — Admin</title><style>${PAGE_STYLE}</style></head>
+<body><div class="card">
   <h1><span>oye</span>nino</h1>
   <p class="sub">admin access</p>
   ${error ? `<div class="error">${error}</div>` : ''}
-  <form method="POST" action="/admin/login">
-    <label>Admin Key</label>
-    <input type="password" name="admin_key" placeholder="Enter your admin key" autofocus required>
-    <button type="submit">Login</button>
+  <form method="POST" action="/admin/send-otp">
+    <label>Email</label>
+    <input type="email" name="email" placeholder="Enter your email" autofocus required>
+    <button type="submit">Send OTP</button>
   </form>
   <p class="note">Restricted access — unauthorized attempts are logged</p>
-</div>
-</body>
-</html>`;
+</div></body></html>`;
+}
+
+function otpPageHTML(error, success) {
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Oye Nino — Verify</title><style>${PAGE_STYLE}</style></head>
+<body><div class="card">
+  <h1><span>oye</span>nino</h1>
+  <p class="sub">verify your identity</p>
+  ${error ? `<div class="error">${error}</div>` : ''}
+  ${success ? `<div class="success">${success}</div>` : ''}
+  <form method="POST" action="/admin/login">
+    <label>OTP (check your email)</label>
+    <input type="text" name="otp" placeholder="6-digit code" inputmode="numeric" maxlength="6" autofocus required>
+    <label>Admin Key</label>
+    <input type="password" name="admin_key" placeholder="Enter your admin key" required>
+    <button type="submit">Login</button>
+  </form>
+  <p class="note">OTP valid for 5 minutes</p>
+</div></body></html>`;
 }
 
 function dashboardHTML() {
@@ -205,24 +245,20 @@ tr:hover td{background:#151515}
     <tbody id="tbody"><tr><td colspan="10" class="empty">Loading...</td></tr></tbody>
   </table>
 </div>
-
 <div class="modal-bg" id="modal" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="modal" id="modal-content"></div>
 </div>
-
 <script>
 var currentForm = '';
-
 function api(path, opts) {
   return fetch(path, opts).then(function(r) {
     if (r.status === 401) { location.href = '/admin'; return null; }
     return r.json();
-  });
+  }).catch(function() { return null; });
 }
-
 function loadStats() {
   api('/admin/api/stats').then(function(data) {
-    if (!data) return;
+    if (!data || !Array.isArray(data)) return;
     var el = document.getElementById('stats');
     var t = {};
     data.forEach(function(r) { t[r.status] = (t[r.status]||0) + r.count; });
@@ -239,7 +275,6 @@ function loadStats() {
     document.getElementById('meta').textContent = total + ' leads';
   });
 }
-
 function loadRows(form) {
   var tbody = document.getElementById('tbody');
   tbody.innerHTML = '<tr><td colspan="10" class="empty">Loading...</td></tr>';
@@ -275,18 +310,13 @@ function loadRows(form) {
     }).join('');
   });
 }
-
 function setStatus(id, status) {
   api('/admin/api/submissions/'+id, {
     method:'PATCH',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({status:status})
-  }).then(function() {
-    loadRows(currentForm);
-    loadStats();
-  });
+  }).then(function() { loadRows(currentForm); loadStats(); });
 }
-
 function showDetail(id) {
   api('/admin/api/submissions/'+id).then(function(d) {
     if (!d) return;
@@ -300,18 +330,14 @@ function showDetail(id) {
     fields.forEach(function(f) {
       if (f[1]) h += '<div class="field"><span class="k">'+f[0]+'</span> <span class="v">'+f[1]+'</span></div>';
     });
-    if (d.message) {
-      h += '<div class="msg-box">'+d.message.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
-    }
+    if (d.message) h += '<div class="msg-box">'+d.message.replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
     if (d.device) {
       h += '<div class="section">Device</div>';
-      try { h += '<pre>'+JSON.stringify(JSON.parse(d.device),null,2)+'</pre>'; }
-      catch(e) { h += '<pre>'+d.device+'</pre>'; }
+      try { h += '<pre>'+JSON.stringify(JSON.parse(d.device),null,2)+'</pre>'; } catch(e) { h += '<pre>'+d.device+'</pre>'; }
     }
     if (d.location) {
       h += '<div class="section">Location</div>';
-      try { h += '<pre>'+JSON.stringify(JSON.parse(d.location),null,2)+'</pre>'; }
-      catch(e) { h += '<pre>'+d.location+'</pre>'; }
+      try { h += '<pre>'+JSON.stringify(JSON.parse(d.location),null,2)+'</pre>'; } catch(e) { h += '<pre>'+d.location+'</pre>'; }
     }
     h += '<div class="section">Meta</div>';
     h += '<pre>IP: '+(d.ip||'\u2014')+'\nReferer: '+(d.referer||'\u2014')+'</pre>';
@@ -320,7 +346,6 @@ function showDetail(id) {
     document.getElementById('modal').classList.add('open');
   });
 }
-
 document.getElementById('filters').addEventListener('click', function(e) {
   if (e.target.tagName!=='BUTTON') return;
   document.querySelectorAll('.filters button').forEach(function(b){b.classList.remove('active')});
@@ -328,7 +353,6 @@ document.getElementById('filters').addEventListener('click', function(e) {
   currentForm = e.target.dataset.form;
   loadRows(currentForm);
 });
-
 loadStats();
 loadRows('');
 </script>
@@ -345,50 +369,87 @@ export default {
     const url = new URL(request.url);
 
     // ══════════════════════════════════════════
-    // INTERNAL INGEST — called by oyenino-forms via service binding
-    // Not publicly accessible (service bindings are internal only)
+    // INTERNAL INGEST — service binding only
     // ══════════════════════════════════════════
 
     if (url.pathname === '/api/ingest' && request.method === 'POST') {
       try {
         const { data, meta } = await request.json();
         await insertSubmission(env.DB, data, meta);
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json({ ok: true });
       } catch (err) {
         console.log("Ingest error:", err.message);
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500, headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json({ error: err.message }, { status: 500 });
       }
     }
 
     // ══════════════════════════════════════════
-    // ADMIN ROUTES — /admin/*
+    // ADMIN ROUTES
     // ══════════════════════════════════════════
 
     if (url.pathname.startsWith('/admin')) {
 
-      // ── Login page ──
+      // ── Step 1: Email page (GET /admin) ──
       if ((url.pathname === '/admin' || url.pathname === '/admin/' || url.pathname === '/admin/login') && request.method === 'GET') {
+        // Already logged in?
         const cookie = getCookie(request, COOKIE_NAME);
         if (cookie) {
           const session = await verifySession(cookie, env.ADMIN_KEY);
           if (session) return Response.redirect(`${url.origin}/admin/dashboard`, 302);
         }
-        return new Response(loginPageHTML(null), {
+        return new Response(emailPageHTML(null), {
           headers: { 'Content-Type': 'text/html;charset=UTF-8' },
         });
       }
 
-      // ── Login submit ──
+      // ── Step 2: Send OTP (POST /admin/send-otp) ──
+      if (url.pathname === '/admin/send-otp' && request.method === 'POST') {
+        const fd = await request.formData();
+        const email = (fd.get('email') || '').trim().toLowerCase();
+
+        if (email !== ADMIN_EMAIL) {
+          const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+          console.log(`[AUTH FAIL] Wrong email: ${email}, IP: ${ip}`);
+          return new Response(emailPageHTML('Access denied'), {
+            status: 403, headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+          });
+        }
+
+        // Generate OTP & store in KV (expires in 5 min)
+        const otp = generateOTP();
+        await env.OTP_STORE.put(`otp:${ADMIN_EMAIL}`, otp, { expirationTtl: OTP_EXPIRY });
+
+        // Send OTP via Resend
+        const sent = await sendOTPEmail(env, otp);
+        if (!sent) {
+          return new Response(otpPageHTML('Failed to send OTP. Check Resend config.', null), {
+            status: 500, headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+          });
+        }
+
+        return new Response(otpPageHTML(null, 'OTP sent to your email'), {
+          headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+        });
+      }
+
+      // ── Step 3: Verify OTP + Admin Key (POST /admin/login) ──
       if (url.pathname === '/admin/login' && request.method === 'POST') {
         const fd = await request.formData();
-        const submitted = fd.get('admin_key') || '';
+        const submittedOTP = (fd.get('otp') || '').trim();
+        const submittedKey = fd.get('admin_key') || '';
 
-        // Constant-time comparison
-        const a = new TextEncoder().encode(submitted);
+        // Verify OTP from KV
+        const storedOTP = await env.OTP_STORE.get(`otp:${ADMIN_EMAIL}`);
+        if (!storedOTP || storedOTP !== submittedOTP) {
+          const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+          console.log(`[AUTH FAIL] Bad OTP, IP: ${ip}`);
+          return new Response(otpPageHTML('Invalid or expired OTP', null), {
+            status: 401, headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+          });
+        }
+
+        // Verify Admin Key (constant-time)
+        const a = new TextEncoder().encode(submittedKey);
         const b = new TextEncoder().encode(env.ADMIN_KEY);
         let match = a.length === b.length;
         const len = Math.max(a.length, b.length);
@@ -398,14 +459,18 @@ export default {
 
         if (!match) {
           const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
-          console.log(`[AUTH FAIL] IP: ${ip} at ${new Date().toISOString()}`);
-          return new Response(loginPageHTML('Invalid admin key'), {
+          console.log(`[AUTH FAIL] Bad admin key, IP: ${ip}`);
+          return new Response(otpPageHTML('Invalid admin key', null), {
             status: 401, headers: { 'Content-Type': 'text/html;charset=UTF-8' },
           });
         }
 
+        // Delete used OTP
+        await env.OTP_STORE.delete(`otp:${ADMIN_EMAIL}`);
+
+        // Create session
         const token = await signSession(
-          { role: 'admin', iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE },
+          { role: 'admin', email: ADMIN_EMAIL, iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE },
           env.ADMIN_KEY
         );
 
@@ -435,9 +500,7 @@ export default {
 
       if (!session) {
         if (url.pathname.startsWith('/admin/api/')) {
-          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401, headers: { 'Content-Type': 'application/json' },
-          });
+          return Response.json({ error: 'Unauthorized' }, { status: 401 });
         }
         return Response.redirect(`${url.origin}/admin`, 302);
       }
@@ -461,9 +524,7 @@ export default {
         query += ' ORDER BY created_at DESC LIMIT ?';
         params.push(limit);
         const results = await env.DB.prepare(query).bind(...params).all();
-        return new Response(JSON.stringify({ results: results.results }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json({ results: results.results });
       }
 
       // ── API: Single submission ──
@@ -471,9 +532,7 @@ export default {
         const id = url.pathname.split('/').pop();
         const row = await env.DB.prepare('SELECT * FROM submissions WHERE id = ?').bind(id).first();
         if (!row) return new Response('Not found', { status: 404 });
-        return new Response(JSON.stringify(row), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json(row);
       }
 
       // ── API: Update status/notes ──
@@ -488,9 +547,7 @@ export default {
           vals.push(id);
           await env.DB.prepare(`UPDATE submissions SET ${updates.join(', ')} WHERE id = ?`).bind(...vals).run();
         }
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json({ ok: true });
       }
 
       // ── API: Stats ──
@@ -499,9 +556,7 @@ export default {
           SELECT form_name, status, COUNT(*) as count
           FROM submissions GROUP BY form_name, status
         `).all();
-        return new Response(JSON.stringify(stats.results), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return Response.json(stats.results);
       }
 
       return new Response('Not found', { status: 404 });

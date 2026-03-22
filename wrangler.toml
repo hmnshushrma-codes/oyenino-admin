@@ -7,9 +7,23 @@ routes = [
 ]
  
 [[d1_databases]]
-binding = "oyenino_forms_db"
+binding = "DB"
 database_name = "oyenino-forms-db"
 database_id = "02b72b9d-8451-4fa2-b3bb-5ffacd9fcd43"
  
+
+
+# KV for OTP storage (auto-expires)
+# Create with: wrangler kv namespace create OTP_STORE
+[[kv_namespaces]]
+binding = "OTP_STORE"
+id = "567754178ce446c8af72dc9184bf1f28"
+ 
+# Secrets (set via wrangler secret put):
+# ADMIN_KEY     — login password + cookie signing key
+# RESEND_API_KEY — for sending OTP emails
+# EMAIL_FROM    — sender email (optional, defaults to onboarding@resend.dev)
+
+
 # Secrets (set via wrangler secret put):
 # ADMIN_KEY — login password + cookie signing key 
